@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import pickle
 import time
+import os
 from streamlit_option_menu import option_menu
 import base64
 import tempfile
@@ -9,7 +10,7 @@ import json
 
 # --- New Chatbot Imports ---
 from groq import Groq
-from dotenv import load_dotenv
+# load_dotenv() # Retiré car nous utilisons st.secrets pour la clé GROQ
 import pyttsx3 # For text-to-speech, keep this if you want it
 # --- End New Chatbot Imports ---
 
@@ -322,7 +323,7 @@ if selected == "Prédiction de Désabonnement":
 
     if submitted:
         with st.spinner("Analyse en cours..."):
-            time.sleep(2)
+            time.sleep(2) # Simule un délai de traitement
 
             input_data = preprocess_input(
                 credit_score, geography, gender, age, tenure, balance,
@@ -346,30 +347,30 @@ if selected == "Prédiction de Désabonnement":
                 st.session_state.prediction_message = "Impossible de traiter les données. Vérifiez les entrées."
         st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True) # Clôture hypothétique d'un div parent pour la section prédiction
 
 elif selected == "Chatbot d'Assistance":
-    load_dotenv()
-<<<<<<< HEAD
+    # load_dotenv() # Retiré
+    client = None # Initialisation
     try:
-        groq_api_key = os.environ.get("GROQ_API_KEY")
-        if not groq_api_key:
-            st.error("Erreur d'API Groq: La variable d'environnement 'GROQ_API_KEY' n'est pas définie. Veuillez la configurer dans un fichier '.env' ou via les secrets de Streamlit. L'API est nécessaire pour la transcription et le chatbot.")
-            st.stop()
-        client = Groq(api_key=groq_api_key)
+        # Modification pour utiliser st.secrets
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    except KeyError: # Spécifiquement pour une clé manquante dans st.secrets
+        st.error("Erreur d'API Groq: La clé 'GROQ_API_KEY' n'est pas configurée dans les secrets de Streamlit.")
+        st.stop()
     except Exception as e:
         st.error(f"Erreur d'initialisation Groq: Impossible de se connecter à l'API Groq. Erreur: {e}. Vérifiez votre clé et votre connexion.")
         st.stop()
-=======
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
->>>>>>> 715ef1e0d81ae88ac2b773f1e6f6408d28d87af4
 
+    # Le reste de votre code pour le Chatbot d'Assistance reste identique
     st.markdown("<h3><svg viewBox='0 0 24 24' width='30' height='30' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15a2 2 0 0 1-2 2H7l-4 4V3a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'></path></svg>Assistant Virtuel</h3>", unsafe_allow_html=True)
 
     st.sidebar.title("⚙️ Paramètres du Chatbot")
     if st.sidebar.button("Effacer l'historique du Chatbot"):
         st.session_state.messages = []
         st.session_state.messages.append({"role": "bot", "content": "Bonjour ! Je suis votre assistant virtuel. Comment puis-je vous aider aujourd'hui ?"})
+        if 'last_processed_recorded_audio' in st.session_state: # Aussi effacer ce cache
+            del st.session_state['last_processed_recorded_audio']
         st.rerun()
 
     if "messages" not in st.session_state:
@@ -384,9 +385,8 @@ elif selected == "Chatbot d'Assistance":
                     <span class='message-icon'>👤</span> {message_item['content']}
                 </div>
             """, unsafe_allow_html=True)
-            if 'audio_data' in message_item: # Check if audio was associated with this message
+            if 'audio_data' in message_item and message_item['audio_data']: 
                 try:
-                    # st.audio expects bytes, so base64 decode it
                     st.audio(base64.b64decode(message_item['audio_data']), format='audio/webm', start_time=0)
                 except Exception as e:
                     st.warning(f"Impossible de lire l'audio enregistré : {e}")
@@ -399,57 +399,46 @@ elif selected == "Chatbot d'Assistance":
 
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
 
-    # --- Custom Audio Recorder Component (outside the form) ---
     st.markdown("<h4>Ou enregistrez votre voix :</h4>", unsafe_allow_html=True)
-    # This component updates st.session_state['audio_recorder_custom_component'] when recording stops
     recorded_audio_base64 = audio_recorder_component()
 
-    # --- Form for text input and file uploader ---
     with st.form("chat_input_form", clear_on_submit=True):
         message_input = st.text_input("💬 Entrez votre message ici :", "", key="chat_text_input")
         audio_file_uploader = st.file_uploader("📢 Téléversez un message audio (format m4a, mp3, wav)", type=["m4a", "mp3", "wav"], key="chat_audio_uploader")
         send_button = st.form_submit_button("✉️ Envoyer Message", type="primary")
 
     processed_message_content = ""
-    audio_to_display = None # To store base64 audio if it's from recording
+    audio_to_display = None 
 
-    # --- Logic for processing audio/text and interacting with chatbot ---
-    # Prioritize recorded audio from the custom component
-    component_name = "audio_recorder_custom_component" # Ensure this matches the name in audio_recorder_component()
+    component_name = "audio_recorder_custom_component" 
 
-    # Check if recorded_audio_base64 is newly available and not yet processed in this run
     if recorded_audio_base64 and recorded_audio_base64 != st.session_state.get('last_processed_recorded_audio', None):
         st.info("DEBUG (Python): Détection d'un nouvel audio enregistré. Traitement en cours...")
-        st.session_state['last_processed_recorded_audio'] = recorded_audio_base64 # Store to prevent reprocessing
+        st.session_state['last_processed_recorded_audio'] = recorded_audio_base64 
 
         try:
-            # --- DEBUGGING STEP 1: Check base64 data received in Python ---
             st.info(f"DEBUG (Python): Base64 audio reçu. Longueur : {len(recorded_audio_base64) if recorded_audio_base64 else 0}")
             
             audio_bytes = base64.b64decode(recorded_audio_base64)
-            audio_to_display = recorded_audio_base64 # Store for display
+            audio_to_display = recorded_audio_base64 
 
-            # --- DEBUGGING STEP 2: Check decoded audio bytes ---
             st.info(f"DEBUG (Python): Audio décodé en octets. Longueur : {len(audio_bytes)}")
 
             if not audio_bytes:
                 st.error("Erreur Enregistrement: L'audio enregistré est vide après décodage Base64.")
-                # Clear component value to allow new recording
                 if component_name in st.session_state:
                     del st.session_state[component_name]
-                st.rerun() # Rerun to update UI with error
-                
-            # Use a more robust temp file creation
-            # Ensure the suffix matches the expected audio format (webm as per JS)
+                st.rerun() 
+            
+            temp_audio_path = "" # Initialisation pour éviter UnboundLocalError
             with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio_file:
                 temp_audio_file.write(audio_bytes)
             temp_audio_path = temp_audio_file.name
 
-            # --- DEBUGGING STEP 3: Check if temp file was created ---
             st.info(f"DEBUG (Python): Fichier temporaire créé à : {temp_audio_path}")
             if not os.path.exists(temp_audio_path) or os.path.getsize(temp_audio_path) == 0:
                 st.error(f"Erreur Enregistrement: Le fichier audio temporaire est vide ou n'a pas été créé correctement à {temp_audio_path}.")
-                if os.path.exists(temp_audio_path): # Clean up if it exists
+                if os.path.exists(temp_audio_path): 
                     os.remove(temp_audio_path)
                 if component_name in st.session_state:
                     del st.session_state[component_name]
@@ -457,9 +446,9 @@ elif selected == "Chatbot d'Assistance":
 
             with open(temp_audio_path, "rb") as file:
                 with st.spinner("Transcription audio en cours..."):
-                    try: # Added specific try-except for Groq API call
+                    try: 
                         transcription = client.audio.transcriptions.create(
-                            file=("recorded_audio.webm", file.read()), # Filename in tuple must match the format
+                            file=("recorded_audio.webm", file.read()), 
                             model="whisper-large-v3",
                             response_format="json",
                             language="fr",
@@ -469,95 +458,90 @@ elif selected == "Chatbot d'Assistance":
                         st.info(f"DEBUG (Python): Transcription réussie: '{processed_message_content}'")
                     except Exception as groq_transcription_error:
                         st.error(f"Erreur Transcription (Groq API) : {groq_transcription_error}")
-                        processed_message_content = "" # Clear message if transcription fails
+                        processed_message_content = "" 
 
-            if os.path.exists(temp_audio_path): # Ensure file exists before trying to remove
-                os.remove(temp_audio_path) # Clean up temp file
+            if os.path.exists(temp_audio_path): 
+                os.remove(temp_audio_path) 
 
-            # Trigger chatbot processing ONLY if transcription was successful
             if processed_message_content:
                 st.session_state.messages.append({"role": "user", "content": processed_message_content, "audio_data": audio_to_display})
                 with st.spinner("Le chatbot réfléchit..."):
                     try:
                         chat_completion = client.chat.completions.create(
                             messages=[{"role": "user", "content": processed_message_content}],
-                            model="llama-3.3-70b-versatile",
+                            model="llama3-70b-8192", # Modèle exemple, ajustez si besoin
                         )
                         response_text = chat_completion.choices[0].message.content
                         st.session_state.messages.append({"role": "bot", "content": response_text})
                         st.info(f"DEBUG (Python): Réponse du chatbot obtenue.")
-                    except Exception as e:
-                        st.error(f"Erreur Chatbot (API): Impossible d'obtenir une réponse du chatbot Groq. Erreur: {e}")
+                    except Exception as e_chat: # Renommé pour éviter conflit avec e extérieur
+                        st.error(f"Erreur Chatbot (API): Impossible d'obtenir une réponse du chatbot Groq. Erreur: {e_chat}")
                         st.session_state.messages.append({"role": "bot", "content": "Désolé, je n'ai pas pu traiter votre demande. Une erreur est survenue lors de la communication avec le service de chatbot."})
             else:
                 st.warning("Aucune transcription obtenue, le chatbot ne sera pas interrogé.")
 
-            # Clear component value for next recording and force rerun
             if component_name in st.session_state:
                 del st.session_state[component_name]
             st.rerun()
 
-        except Exception as e:
-            st.error(f"Erreur Générale (Audio Enregistré): Une erreur inattendue est survenue lors du traitement de l'audio enregistré. Erreur: {e}")
-            # Ensure proper cleanup/reset
+        except Exception as e_outer: # Renommé pour éviter conflit
+            st.error(f"Erreur Générale (Audio Enregistré): Une erreur inattendue est survenue lors du traitement de l'audio enregistré. Erreur: {e_outer}")
             if component_name in st.session_state:
                 del st.session_state[component_name]
             if 'last_processed_recorded_audio' in st.session_state:
                 del st.session_state['last_processed_recorded_audio']
-            st.rerun() # Rerun to update UI with error
+            st.rerun() 
 
-    # This block runs if the form is submitted by clicking 'Envoyer Message'
     elif send_button:
+        user_input_for_chatbot = "" # Pour stocker le texte à envoyer au chatbot
         if audio_file_uploader:
             st.info("Traitement du fichier audio téléversé...")
             try:
-                # Use a robust temp file creation with original extension
-                filename = tempfile.NamedTemporaryFile(delete=False, suffix=f".{audio_file_uploader.name.split('.')[-1]}").name
-                with open(filename, "wb") as f:
+                original_filename = audio_file_uploader.name
+                temp_file_path_upload = tempfile.NamedTemporaryFile(delete=False, suffix=f".{original_filename.split('.')[-1]}").name
+                with open(temp_file_path_upload, "wb") as f:
                     f.write(audio_file_uploader.getvalue())
 
-                with open(filename, "rb") as file:
-                    with st.spinner("Transcription audio en cours..."):
+                with open(temp_file_path_upload, "rb") as file_to_transcribe:
+                    with st.spinner("Transcription audio (téléversé) en cours..."):
                         transcription = client.audio.transcriptions.create(
-                            file=(audio_file_uploader.name, file.read()),
+                            file=(original_filename, file_to_transcribe.read()),
                             model="whisper-large-v3",
                             response_format="json",
                             language="fr",
                             temperature=0.0
                         )
-                processed_message_content = transcription.text
-                st.session_state.messages.append({"role": "user", "content": processed_message_content})
-                os.remove(filename) # Clean up temp file
-            except Exception as e:
-                st.error(f"Erreur Transcription (Fichier Téléversé): Impossible de transcrire le fichier audio. Vérifiez le format et votre clé API Groq. Erreur: {e}")
-                processed_message_content = "" # Clear message if error
+                user_input_for_chatbot = transcription.text
+                # Pas besoin d'ajouter audio_data ici car c'est un fichier uploadé, pas un enregistrement direct pour relecture simple
+                st.session_state.messages.append({"role": "user", "content": user_input_for_chatbot}) 
+                os.remove(temp_file_path_upload) 
+            except Exception as e_upload_form: # Renommé
+                st.error(f"Erreur Transcription (Fichier Téléversé): {e_upload_form}")
+                user_input_for_chatbot = ""
         elif message_input:
-            processed_message_content = message_input
-            st.session_state.messages.append({"role": "user", "content": processed_message_content})
+            user_input_for_chatbot = message_input
+            st.session_state.messages.append({"role": "user", "content": user_input_for_chatbot})
 
-        # If a message was successfully processed by form submission (uploaded audio or text)
-        if processed_message_content:
-            st.info("...")
+        if user_input_for_chatbot: # S'il y a eu du contenu (texte ou transcription d'upload)
+            st.info("DEBUG (Python): Message (formulaire) envoyé au Chatbot.") # Message de debug plus clair
             with st.spinner("Le chatbot réfléchit..."):
                 try:
                     chat_completion = client.chat.completions.create(
-                        messages=[{"role": "user", "content": processed_message_content}],
-                        model="llama-3.3-70b-versatile",
+                        messages=[{"role": "user", "content": user_input_for_chatbot}],
+                        model="llama3-70b-8192", # Modèle exemple
                     )
                     response_text = chat_completion.choices[0].message.content
                     st.session_state.messages.append({"role": "bot", "content": response_text})
-
-                except Exception as e:
-                    st.error(f"Erreur Chatbot (API): Impossible d'obtenir une réponse du chatbot Groq. Erreur: {e}")
-                    st.session_state.messages.append({"role": "bot", "content": "Désolé, je n'ai pas pu traiter votre demande. Une erreur est survenue lors de la communication avec le service de chatbot."})
+                except Exception as e_chat_form: # Renommé
+                    st.error(f"Erreur Chatbot (API Formulaire): {e_chat_form}")
+                    st.session_state.messages.append({"role": "bot", "content": "Désolé, je n'ai pas pu traiter votre demande (formulaire)."})
         
-        # Reset the last_processed_recorded_audio flag for the next interaction cycle if it was set
         if 'last_processed_recorded_audio' in st.session_state:
             del st.session_state['last_processed_recorded_audio']
         
-        st.rerun() # Force rerun to update chat history and show response
+        st.rerun() 
 
-    st.markdown("</div>", unsafe_allow_html=True) # Close content-card for chatbot
+    st.markdown("</div>", unsafe_allow_html=True) # Fermeture hypothétique du div.content-card
 
 # --- Global Footer ---
 st.markdown("---")
