@@ -338,20 +338,22 @@ p {
 .message-bubble {
     padding: 0.8rem 1.2rem;
     border-radius: 1.2rem;
-    max-width: 75%;
+    max-width: 60%; /* Réduit la largeur maximale pour mieux voir le centrage */
     word-wrap: break-word;
     font-size: 0.95rem;
+    margin: 0.5rem auto; /* <-- NOUVEAU : Centre la bulle horizontalement et ajoute un petit espace vertical */
+    text-align: left; /* <-- NOUVEAU : Aligne le texte à gauche dans la bulle centrée */
 }
 .user-message {
     background-color: var(--primary-color);
     color: var(--background-dark);
-    align-self: flex-end;
+    /* align-self: flex-end; <--- SUPPRIMÉ : N'est plus nécessaire car margin: auto centre */
     border-bottom-right-radius: 0.3rem;
 }
 .bot-message {
     background-color: rgba(60, 60, 90, 0.7);
     color: var(--text-light);
-    align-self: flex-start;
+    /* align-self: flex-start; <--- SUPPRIMÉ : N'est plus nécessaire car margin: auto centre */
     border: 1px solid var(--border-dark);
     border-bottom-left-radius: 0.3rem;
 }
