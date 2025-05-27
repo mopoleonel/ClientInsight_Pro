@@ -2,7 +2,6 @@ groq
 numpy
 pandas
 scikit-learn
-python-dotenv
 pyttsx3
 Requests
 sounddevice

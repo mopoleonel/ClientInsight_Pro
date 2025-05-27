@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import pickle
 import time
-import os
 from streamlit_option_menu import option_menu
 import base64
 import tempfile
@@ -351,6 +350,7 @@ if selected == "Prédiction de Désabonnement":
 
 elif selected == "Chatbot d'Assistance":
     load_dotenv()
+<<<<<<< HEAD
     try:
         groq_api_key = os.environ.get("GROQ_API_KEY")
         if not groq_api_key:
@@ -360,6 +360,9 @@ elif selected == "Chatbot d'Assistance":
     except Exception as e:
         st.error(f"Erreur d'initialisation Groq: Impossible de se connecter à l'API Groq. Erreur: {e}. Vérifiez votre clé et votre connexion.")
         st.stop()
+=======
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+>>>>>>> 715ef1e0d81ae88ac2b773f1e6f6408d28d87af4
 
     st.markdown("<h3><svg viewBox='0 0 24 24' width='30' height='30' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15a2 2 0 0 1-2 2H7l-4 4V3a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'></path></svg>Assistant Virtuel</h3>", unsafe_allow_html=True)
 
