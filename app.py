@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import pickle
 import time
-import os
 from streamlit_option_menu import option_menu
 
 # --- New Chatbot Imports ---
