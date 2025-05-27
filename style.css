@@ -1,0 +1,454 @@
+/* Custom Color Variables */
+:root {
+    --primary-color: #00bcd4; /* Cyan */
+    --secondary-color: #bbbbbb; /* Light gray */
+    --secondary-button-color: #8A2BE2; /* Bleu-violet élégant pour les boutons secondaires */
+    --background-dark: #1a1a2e; /* Dark Blue/Purple */
+    --card-background: rgba(25, 25, 40, 0.7); /* Slightly lighter, transparent dark */
+    --input-background: rgba(40, 40, 60, 0.5); /* Transparent input background */
+    --border-dark: rgba(255, 255, 255, 0.1); /* Subtle white border */
+    --text-light: #e0e0e0; /* Off-white text */
+    --shadow-dark: rgba(0, 0, 0, 0.5); /* Stronger shadow for depth */
+    --success-color: #4CAF50; /* Green */
+    --error-color: #f44336; /* Red */
+    --info-color: #2196F3; /* Blue */
+    --warning-color: #ff9800; /* Orange */
+}
+
+/* Base styles for Streamlit elements */
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif; /* Modern sans-serif font */
+    color: var(--text-light);
+    background: var(--background-dark); /* Ensure body matches the theme */
+    overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+/* Streamlit main content container */
+.main {
+    background: var(--background-dark) !important;
+    color: var(--text-light);
+    padding-top: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* Hide Streamlit's default header, footer, and sidebar elements */
+header, footer, [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stSidebar"], [data-testid="stDecoration"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+
+/* Remove default Streamlit padding from the main content area for full control */
+.main, div[data-testid="stVerticalBlock"], .st-emotion-cache-z5fcl4, .st-emotion-cache-18tsqdr {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+}
+
+/* Main block container inside 'main' to control content width */
+.main .block-container {
+    padding-left: 0rem !important;
+    padding-right: 0rem !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    max-width: 100% !important;
+}
+
+/* Streamlit header elements */
+h1 {
+    color: var(--text-light);
+    text-align: center;
+    font-size: 3.5rem;
+    font-weight: 800;
+    margin-top: 0 !important; /* <--- AJOUTEZ OU MODIFIEZ CECI ! */
+    margin-bottom: 0.5rem;
+    padding-top: 2rem; /* Ajoutez un padding interne si vous voulez un peu d'espace pour le titre lui-même */
+    text-shadow: 0 0 15px rgba(0, 188, 212, 0.5); /* Subtle glow */
+}
+/* ... le reste de votre CSS ... */
+h2, h3, h4, h5, h6 {
+    color: var(--primary-color);
+    font-weight: 600;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    text-align: center; /* Centering for your h3 in cards */
+}
+h3 svg { /* Style for icon inside h3 */
+    color: var(--primary-color);
+    margin-right: 0.5rem; /* Space between icon and text */
+}
+
+/* General text */
+p {
+    line-height: 1.6;
+    color: var(--text-light);
+}
+
+/* Custom Card Styling (Glassmorphism inspired) */
+.content-card {
+    background: var(--card-background);
+    backdrop-filter: blur(10px); /* Glassmorphism blur */
+    border: 1px solid var(--border-dark);
+    border-radius: 1.5rem;
+    box-shadow: 0 20px 40px var(--shadow-dark);
+    padding: 2rem 3rem;
+    margin: 2rem auto; /* Center the card */
+    max-width: 900px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.content-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 25px 50px rgba(0,0,0,0.6);
+}
+
+/* --- streamlit_option_menu specific styles --- */
+/* Target the container of the option menu */
+.menu-container.streamlit-option-menu {
+    display: flex;
+    justify-content: center; /* Center the menu items */
+    align-items: center;
+    background-color: var(--background-dark); /* Match app background */
+    padding: 1rem 0; /* Vertical padding around buttons */
+    border-bottom: 1px solid var(--border-dark); /* Subtle separator below the menu */
+    width: 100%; /* Take full width */
+    position: sticky; /* Make it stick to the top */
+    top: 0; /* Position at the very top */
+    z-index: 1000; /* Ensure it's above other content when scrolling */
+    box-shadow: 0 4px 15px var(--shadow-dark); /* Add a subtle shadow */
+    margin-bottom: 2rem; /* Add space below the menu, adjust as needed */
+    margin-top: 0 !important;
+    margin-bottom: 2rem !important;
+}
+
+/* Style for individual menu links (non-selected) */
+/* CIBLE AGRESSIVEMENT LE LIEN NON SÉLECTIONNÉ POUR LUI DONNER LA NOUVELLE COULEUR ET LES BORDS ARRONDIS */
+.streamlit-option-menu .nav-link {
+    background-color: transparent !important; /* Important pour que la bordure soit visible */
+    border: 2px solid var(--secondary-button-color) !important; /* Nouvelle couleur de bordure bleu-violet */
+    color: var(--secondary-button-color) !important; /* Nouvelle couleur de texte bleu-violet */
+    padding: 0.7rem 1.8rem !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    border-radius: 2rem !important; /* Bords bien arrondis (forme de pilule) */
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    margin: 0 0.75rem !important; /* Espace entre les boutons */
+    box-shadow: none !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.5rem; /* Espace entre l'icône et le texte */
+}
+.streamlit-option-menu .nav-link:hover {
+    background-color: var(--secondary-button-color) !important; /* Couleur de survol devient le bleu-violet */
+    color: var(--background-dark) !important; /* Texte sombre au survol */
+    transform: translateY(-2px) !important;
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4) !important; /* Ombre de la nouvelle couleur */
+}
+
+/* Style for the selected menu link */
+/* CIBLE AGRESSIVEMENT LE LIEN SÉLECTIONNÉ POUR LUI DONNER LA COULEUR PRIMAIRE ET LES BORDS ARRONDIS */
+.streamlit-option-menu .nav-link-selected {
+    background-color: var(--primary-color) !important; /* Reste cyan pour la sélection */
+    color: var(--background-dark) !important; /* Texte sombre pour la sélection */
+    box-shadow: 0 5px 20px rgba(0, 188, 212, 0.6) !important; /* Ombre du cyan */
+    transform: translateY(-2px) !important;
+    border-color: var(--primary-color) !important; /* Bordure cyan pour la sélection */
+    border-radius: 2rem !important; /* Assurez-vous que l'actif a aussi des bords arrondis */
+}
+.streamlit-option-menu .nav-link-selected .icon {
+    color: var(--background-dark) !important; /* Change icon color for selected state */
+}
+
+/* Streamlit Button Overrides (for form submit buttons, etc.) */
+.stButton button {
+    background-color: var(--primary-color) !important;
+    color: var(--background-dark) !important;
+    border: none !important;
+    padding: 0.8rem 2.2rem !important;
+    border-radius: 0.75rem !important;
+    font-weight: 700 !important;
+    font-size: 1.1rem !important;
+    cursor: pointer !important;
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease !important;
+    box-shadow: 0 8px 20px rgba(0, 188, 212, 0.3) !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    display: inline-block !important;
+}
+.stButton button:hover {
+    background-color: #0097a7 !important; /* Darker primary color */
+    transform: translateY(-2px) !important;
+    box-shadow: 0 10px 25px rgba(0, 188, 212, 0.4) !important;
+}
+.stButton button:active {
+    transform: translateY(0) !important;
+    box-shadow: 0 5px 15px rgba(0, 188, 212, 0.3) !important;
+}
+
+/* Streamlit input fields */
+.stTextInput > div > div > input,
+.stNumberInput > div > label + div > input,
+.stSelectbox > div > label + div > div > div,
+.stSlider .st-fx { /* Target the slider track */
+    background-color: var(--input-background) !important;
+    border: 1px solid var(--border-dark) !important;
+    border-radius: 0.75rem !important;
+    color: var(--text-light) !important;
+    padding: 0.9rem 1.2rem !important;
+    font-size: 1rem !important;
+    transition: all 0.3s ease !important;
+}
+.stTextInput > div > div > input:focus,
+.stNumberInput > div > label + div > input:focus,
+.stSelectbox > div > label + div > div > div:focus-within { /* for selectbox */
+    outline: none !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 4px rgba(0, 188, 212, 0.3) !important;
+    background-color: rgba(40, 40, 60, 0.7) !important; /* Slightly darker on focus */
+}
+
+.stTextInput label,
+.stNumberInput label,
+.stSelectbox label,
+.stSlider label {
+    color: var(--text-light) !important;
+    font-weight: 500 !important;
+    margin-bottom: 0.6rem !important;
+    display: block !important; /* Ensure labels are block for margin-bottom */
+}
+
+/* Slider specific adjustments */
+.stSlider div[data-testid="stThumbValue"] { /* Value displayed above thumb */
+    color: var(--primary-color) !important;
+    font-weight: bold !important;
+}
+.stSlider div[data-testid="stTrack"] { /* The track itself */
+    background-color: var(--border-dark) !important;
+    height: 10px !important;
+    border-radius: 5px !important;
+}
+.stSlider div[data-testid="stSelectedTrack"] { /* The filled part of the track */
+    background-color: var(--primary-color) !important;
+}
+.stSlider div[data-testid="stThumb"] { /* The draggable thumb */
+    background-color: var(--primary-color) !important;
+    border: 2px solid var(--background-dark) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+    width: 25px !important;
+    height: 25px !important;
+    border-radius: 50% !important;
+    margin-top: -8px !important; /* Align thumb with track */
+}
+
+/* Results Display */
+.results-display {
+    padding-top: 1.5rem;
+    text-align: center;
+    border-top: 1px solid var(--border-dark);
+    margin-top: 2rem;
+}
+.results-display h4 {
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+}
+.results-display p {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+.results-display .churn-risk {
+    color: var(--error-color);
+    font-weight: bold;
+    font-size: 1.3rem;
+    animation: pulseRed 1.5s infinite; /* Warning animation */
+}
+.results-display .no-churn-risk {
+    color: var(--success-color);
+    font-weight: bold;
+    font-size: 1.3rem;
+    animation: fadeInGreen 1s forwards; /* Confirmation animation */
+}
+@keyframes pulseRed {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.05); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
+@keyframes fadeInGreen {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Spinner Animation (for st.spinner) */
+.stSpinner > div { /* Targets the inner spinner circle */
+    border-top-color: var(--primary-color) !important;
+    border-left-color: var(--primary-color) !important;
+    border-bottom-color: var(--primary-color) !important;
+}
+.stSpinner > div > div { /* Targets the text of the spinner */
+    color: var(--text-light) !important;
+}
+
+/* Chatbot specific styles */
+.chat-window {
+    background: rgba(30, 30, 50, 0.8);
+    backdrop-filter: blur(5px);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    max-height: 500px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 2rem;
+    border: 1px solid var(--border-dark);
+}
+.message-bubble {
+    padding: 0.8rem 1.2rem;
+    border-radius: 1.2rem;
+    max-width: 75%;
+    word-wrap: break-word;
+    font-size: 0.95rem;
+}
+.user-message {
+    background-color: var(--primary-color);
+    color: var(--background-dark);
+    align-self: flex-end;
+    border-bottom-right-radius: 0.3rem;
+}
+.bot-message {
+    background-color: rgba(60, 60, 90, 0.7);
+    color: var(--text-light);
+    align-self: flex-start;
+    border: 1px solid var(--border-dark);
+    border-bottom-left-radius: 0.3rem;
+}
+
+/* Streamlit alerts (st.info, st.success, st.error) */
+div[data-testid="stAlert"] div[data-baseweb="toast"] {
+    border-radius: 0.75rem !important;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
+    backdrop-filter: blur(5px) !important;
+    color: var(--text-light) !important; /* Ensure text is readable */
+}
+div[data-testid="stAlert"] div[data-baseweb="toast"][data-kind="info"] {
+    background-color: rgba(33, 150, 243, 0.2) !important; /* Info blue with transparency */
+    border-color: var(--info-color) !important;
+}
+div[data-testid="stAlert"] div[data-baseweb="toast"][data-kind="success"] {
+    background-color: rgba(76, 175, 80, 0.2) !important; /* Success green with transparency */
+    border-color: var(--success-color) !important;
+}
+div[data-testid="stAlert"] div[data-baseweb="toast"][data-kind="error"] {
+    background-color: rgba(244, 67, 54, 0.2) !important; /* Error red with transparency */
+    border-color: var(--error-color) !important;
+}
+div[data-testid="stAlert"] div[data-baseweb="toast"][data-kind="warning"] { /* Added for warning messages */
+    background-color: rgba(255, 152, 0, 0.2) !important; /* Warning orange with transparency */
+    border-color: var(--warning-color) !important;
+}
+
+
+/* Custom app footer */
+.app-footer {
+    text-align: center;
+    margin-top: 4rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-dark);
+    color: var(--secondary-color);
+    font-size: 0.9rem;
+}
+
+/* Streamlit specific overrides (important for overall theme) */
+/* Hide the Streamlit native header/footer */
+.stApp header {
+    display: none !important;
+}
+.stApp footer {
+    display: none !important;
+}
+
+/* Make st.info and st.success match our theme colors more closely */
+div[data-testid="stAlert"] div[data-baseweb="toast"] {
+    border-radius: 0.75rem;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    backdrop-filter: blur(5px);
+}
+div[data-testid="stAlert"] div[data-baseweb="toast"][data-kind="info"] {
+    background-color: rgba(33, 150, 243, 0.2) !important; /* Info blue with transparency */
+    border-color: var(--info-color) !important;
+    color: var(--text-light) !important;
+}
+div[data-testid="stAlert"] div[data-baseweb="toast"][data-kind="success"] {
+    background-color: rgba(76, 175, 80, 0.2) !important; /* Success green with transparency */
+    border-color: var(--success-color) !important;
+    color: var(--text-light) !important;
+}
+div[data-testid="stAlert"] div[data-baseweb="toast"][data-kind="error"] {
+    background-color: rgba(244, 67, 54, 0.2) !important; /* Error red with transparency */
+    border-color: var(--error-color) !important;
+    color: var(--text-light) !important;
+}
+
+/* Ensure the submit buttons (inside form) match the theme */
+div[data-testid="stForm"] > form > div > div > button {
+    background-color: var(--primary-color) !important;
+    color: var(--background-dark) !important;
+    border-radius: 0.75rem !important;
+    font-weight: 700 !important;
+    font-size: 1.1rem !important;
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease !important;
+    box-shadow: 0 8px 20px rgba(0, 188, 212, 0.3) !important;
+}
+div[data-testid="stForm"] > form > div > div > button:hover {
+    background-color: #0097a7 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 10px 25px rgba(0, 188, 212, 0.4) !important;
+}
+
+/* Specific styling for st.text_input in chatbot */
+div[data-testid="stTextInput"] > div > div > input {
+    background-color: rgba(40, 40, 60, 0.5) !important;
+    border: 1px solid var(--border-dark) !important;
+    color: var(--text-light) !important;
+    border-radius: 0.75rem !important;
+    padding: 0.8rem 1.2rem !important;
+}
+div[data-testid="stTextInput"] > div > div > input:focus {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 4px rgba(0, 188, 212, 0.3) !important;
+}
+
+/* Sidebar styling for a dark theme */
+.st-emotion-cache-vk33gh { /* This class is for the sidebar itself, may change in future Streamlit versions */
+    background-color: rgba(25, 25, 40, 0.9) !important; /* Slightly darker than card */
+    backdrop-filter: blur(15px) !important;
+    border-right: 1px solid var(--border-dark) !important;
+    box-shadow: 5px 0 15px rgba(0,0,0,0.4) !important;
+}
+/* Ensure sidebar content (like form elements) match theme */
+.st-emotion-cache-17lsv9n, .st-emotion-cache-18ni7ap { /* These are internal Streamlit widget containers */
+    background-color: transparent !important;
+}
+
+/* Global input/select styles via Streamlit theming if possible, but CSS override is more direct */
+.stSlider div[data-testid="stThumbValue"] {
+    color: var(--primary-color) !important;
+}
+.stSlider div[data-testid="stTrack"] {
+    background-color: var(--border-dark) !important;
+}
+.stSlider div[data-testid="stTrack"] div[data-testid="stSelectedTrack"] {
+    background-color: var(--primary-color) !important;
+}
+.stSlider div[data-testid="stThumb"] {
+    background-color: var(--primary-color) !important;
+    border: 2px solid var(--background-dark) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+}

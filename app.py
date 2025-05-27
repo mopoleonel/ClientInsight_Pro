@@ -4,28 +4,171 @@ import pickle
 import time
 import os
 from streamlit_option_menu import option_menu
+import base64
+import tempfile
+import json
 
 # --- New Chatbot Imports ---
 from groq import Groq
-import tempfile
 from dotenv import load_dotenv
-import sounddevice as sd
-import numpy as np
-import wave
-import requests
-import pyttsx3
+import pyttsx3 # For text-to-speech, keep this if you want it
 # --- End New Chatbot Imports ---
+
+# --- Custom Streamlit Component for Audio Recording ---
+def audio_recorder_component():
+    """
+    Streamlit component to record audio in the browser and return it as base64.
+    """
+    # Define the component name used in JavaScript's postMessage
+    component_name = "audio_recorder_custom_component"
+
+    st.components.v1.html(
+        f"""
+        <style>
+        .audio-recorder-container {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #262730;
+            margin-top: 10px;
+        }}
+        .audio-recorder-button {{
+            background-color: #FF4B4B;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }}
+        .audio-recorder-button:hover {{
+            background-color: #E63B3B;
+            transform: scale(1.05);
+        }}
+        .audio-recorder-button:active {{
+            transform: scale(0.95);
+        }}
+        .audio-recorder-button.recording {{
+            background-color: #28a745;
+            animation: pulse 1.5s infinite;
+        }}
+        .audio-recorder-status {{
+            margin-top: 8px;
+            font-size: 0.8em;
+            color: #ccc;
+        }}
+        @keyframes pulse {{
+            0% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }}
+            70% {{ box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }}
+            100% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }}
+        }}
+        </style>
+        <div class="audio-recorder-container">
+            <button id="recordButton" class="audio-recorder-button">🎤</button>
+            <div id="status" class="audio-recorder-status">Appuyez pour enregistrer</div>
+        </div>
+
+        <script>
+            const recordButton = document.getElementById('recordButton');
+            const statusDiv = document.getElementById('status');
+            let mediaRecorder;
+            let audioChunks = [];
+            let isRecording = false;
+
+            function sendAudioToStreamlit(data) {{ // Doubled {{
+                if (window.parent.streamlitReportReady) {{ // Doubled {{
+                    window.parent.streamlitReportReady();
+                }} // Doubled }}
+                console.log("Sending data to Streamlit. Data length:", data ? data.length : 0); // DEBUG JS
+                window.parent.postMessage({{ // Doubled {{
+                    type: 'streamlit:setComponentValue',
+                    componentName: '{component_name}',
+                    value: data,
+                }}, '*'); // Doubled }}
+            }} // Doubled }}
+
+            recordButton.onclick = async () => {{ // Doubled {{
+                if (!isRecording) {{ // Doubled {{
+                    isRecording = true;
+                    recordButton.classList.add('recording');
+                    recordButton.innerHTML = '🛑';
+                    statusDiv.innerText = 'Enregistrement... Appuyez pour arrêter.';
+                    audioChunks = [];
+
+                    try {{ // Doubled {{
+                        const stream = await navigator.mediaDevices.getUserMedia({{ audio: true }}); // Doubled {{
+                        // Ensure audio/webm is supported, fallback if needed
+                        const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' :
+                                       MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' :
+                                       'audio/ogg'; // Fallback to a common type
+                        
+                        console.log("Using MIME type for recording:", mimeType); // DEBUG JS
+                        mediaRecorder = new MediaRecorder(stream, {{ mimeType: mimeType }}); // Doubled {{
+
+                        mediaRecorder.ondataavailable = event => {{ // Doubled {{
+                            audioChunks.push(event.data);
+                        }}; // Doubled }}
+
+                        mediaRecorder.onstop = async () => {{ // Doubled {{
+                            const audioBlob = new Blob(audioChunks, {{ type: mimeType }}); // Doubled {{
+                            const reader = new FileReader();
+                            reader.readAsDataURL(audioBlob);
+                            reader.onloadend = () => {{ // Doubled {{
+                                const base64data = reader.result.split(',')[1];
+                                console.log("Audio recorded. Base64 length:", base64data ? base64data.length : 0); // DEBUG JS
+                                sendAudioToStreamlit(base64data);
+                            }}; // Doubled }}
+                            stream.getTracks().forEach(track => track.stop());
+                        }}; // Doubled }}
+
+                        mediaRecorder.start();
+                    }} catch (err) {{ // Doubled {{
+                        console.error('Error accessing microphone or media recording:', err); // DEBUG JS
+                        statusDiv.innerText = 'Erreur: Accès micro refusé ou impossible. Vérifiez les permissions de votre navigateur.';
+                        isRecording = false;
+                        recordButton.classList.remove('recording');
+                        recordButton.innerHTML = '🎤';
+                    }} // Doubled }}
+
+                }} else {{ // Doubled {{
+                    isRecording = false;
+                    recordButton.classList.remove('recording');
+                    recordButton.innerHTML = '🎤';
+                    statusDiv.innerText = 'Appuyez pour enregistrer';
+                    if (mediaRecorder && mediaRecorder.state === 'recording') {{ // Doubled {{
+                        mediaRecorder.stop();
+                    }} // Doubled }}
+                }} // Doubled }}
+            }}; // Doubled }}
+        </script>
+        """,
+        height=100,
+        scrolling=False
+    )
+    # Return the value from session_state using the defined component_name
+    return st.session_state.get(component_name, None)
+
+# --- End Custom Streamlit Component ---
 
 # --- Function to Inject Custom CSS ---
 def inject_css(file_path):
-    """
-    Injects custom CSS from a local file into the Streamlit app.
-    """
     try:
         with open(file_path) as f:
             st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
     except FileNotFoundError:
-        st.error(f"Erreur: Le fichier CSS '{file_path}' est introuvable. Assurez-vous qu'il est dans le même répertoire.")
+        st.error(f"Erreur CSS: Le fichier '{file_path}' est introuvable. Assurez-vous qu'il est dans le même répertoire.")
+        st.stop()
+    except Exception as e:
+        st.error(f"Erreur CSS: Impossible d'injecter le CSS depuis '{file_path}'. Erreur: {e}")
         st.stop()
 
 # --- Streamlit Page Configuration ---
@@ -36,24 +179,20 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- Inject Custom CSS from style.css ---
 inject_css('style.css')
 
 # --- Load Machine Learning Model (Cached for Performance) ---
 @st.cache_resource
 def load_model():
-    """
-    Loads the pre-trained machine learning model from 'model.pkl'.
-    """
     try:
         with open('model.pkl', 'rb') as file:
             model = pickle.load(file)
         return model
     except FileNotFoundError:
-        st.error("Erreur : Le fichier 'model.pkl' est introuvable. Assurez-vous qu'il est dans le même répertoire que 'app.py'.")
+        st.error("Erreur Modèle: Le fichier 'model.pkl' est introuvable. Assurez-vous qu'il est dans le même répertoire que 'app.py'.")
         st.stop()
     except Exception as e:
-        st.error(f"Erreur lors du chargement du modèle : {e}. Vérifiez que 'model.pkl' est un fichier pickle valide.")
+        st.error(f"Erreur Modèle: Impossible de charger le modèle. Vérifiez que 'model.pkl' est un fichier pickle valide. Erreur: {e}")
         st.stop()
 
 model = load_model()
@@ -61,9 +200,6 @@ model = load_model()
 # --- Preprocessing Function for Model Input ---
 def preprocess_input(credit_score, geography_display, gender_display, age, tenure, balance,
                      num_products, has_cr_card, is_active_member, estimated_salary):
-    """
-    Transforms raw user input into the format expected by the machine learning model.
-    """
     try:
         gender_encoded = 0 if gender_display == 'Homme' else 1
         if geography_display == 'France':
@@ -83,7 +219,7 @@ def preprocess_input(credit_score, geography_display, gender_display, age, tenur
                      'NumOfProducts', 'HasCrCard', 'IsActiveMember', 'EstimatedSalary'])
         return input_data
     except Exception as e:
-        st.error(f"Erreur lors du prétraitement des données : {e}. Veuillez vérifier les types de données des entrées.")
+        st.error(f"Erreur Prétraitement: Impossible de prétraiter les données d'entrée. Erreur: {e}")
         return None
 
 # --- Main Application Header ---
@@ -163,7 +299,7 @@ if selected == "Prédiction de Désabonnement":
 
     with st.form("prediction_form_main_content", clear_on_submit=False):
         if st.session_state.prediction_result is not None:
-             st.markdown("<div style='margin-top: 2rem; border-top: 1px solid var(--border-dark); padding-top: 2rem;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-top: 2rem; border-top: 1px solid var(--border-dark); padding-top: 2rem;'></div>", unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
 
@@ -215,7 +351,15 @@ if selected == "Prédiction de Désabonnement":
 
 elif selected == "Chatbot d'Assistance":
     load_dotenv()
-    client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+    try:
+        groq_api_key = os.environ.get("GROQ_API_KEY")
+        if not groq_api_key:
+            st.error("Erreur d'API Groq: La variable d'environnement 'GROQ_API_KEY' n'est pas définie. Veuillez la configurer dans un fichier '.env' ou via les secrets de Streamlit. L'API est nécessaire pour la transcription et le chatbot.")
+            st.stop()
+        client = Groq(api_key=groq_api_key)
+    except Exception as e:
+        st.error(f"Erreur d'initialisation Groq: Impossible de se connecter à l'API Groq. Erreur: {e}. Vérifiez votre clé et votre connexion.")
+        st.stop()
 
     st.markdown("<h3><svg viewBox='0 0 24 24' width='30' height='30' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15a2 2 0 0 1-2 2H7l-4 4V3a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'></path></svg>Assistant Virtuel</h3>", unsafe_allow_html=True)
 
@@ -237,98 +381,180 @@ elif selected == "Chatbot d'Assistance":
                     <span class='message-icon'>👤</span> {message_item['content']}
                 </div>
             """, unsafe_allow_html=True)
+            if 'audio_data' in message_item: # Check if audio was associated with this message
+                try:
+                    # st.audio expects bytes, so base64 decode it
+                    st.audio(base64.b64decode(message_item['audio_data']), format='audio/webm', start_time=0)
+                except Exception as e:
+                    st.warning(f"Impossible de lire l'audio enregistré : {e}")
         else:
             st.markdown(f"""
                 <div class='message-bubble bot-message'>
                     <span class='message-icon'>🤖</span> {message_item['content']}
                 </div>
             """, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-    # --- End chat history display with icons ---
 
+    st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
 
+    # --- Custom Audio Recorder Component (outside the form) ---
+    st.markdown("<h4>Ou enregistrez votre voix :</h4>", unsafe_allow_html=True)
+    # This component updates st.session_state['audio_recorder_custom_component'] when recording stops
+    recorded_audio_base64 = audio_recorder_component()
+
+    # --- Form for text input and file uploader ---
     with st.form("chat_input_form", clear_on_submit=True):
         message_input = st.text_input("💬 Entrez votre message ici :", "", key="chat_text_input")
         audio_file_uploader = st.file_uploader("📢 Téléversez un message audio (format m4a, mp3, wav)", type=["m4a", "mp3", "wav"], key="chat_audio_uploader")
+        send_button = st.form_submit_button("✉️ Envoyer Message", type="primary")
 
-        col_voice, col_send = st.columns([0.5, 0.5])
-        with col_voice:
-            speak_button = st.form_submit_button("🎤 Parler", type="secondary", help="Enregistre votre voix pendant 5 secondes")
-        with col_send:
-            send_button = st.form_submit_button("✉️ Envoyer Message", type="primary")
+    processed_message_content = ""
+    audio_to_display = None # To store base64 audio if it's from recording
 
-    if audio_file_uploader:
-        st.audio(audio_file_uploader, format="audio/mp3")
+    # --- Logic for processing audio/text and interacting with chatbot ---
+    # Prioritize recorded audio from the custom component
+    component_name = "audio_recorder_custom_component" # Ensure this matches the name in audio_recorder_component()
 
-    def record_audio():
-        duration = 5
-        samplerate = 16000
-        with st.spinner("🎙 Enregistrement en cours... Parlez maintenant !"):
-            audio_data = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype=np.int16)
-            sd.wait()
+    # Check if recorded_audio_base64 is newly available and not yet processed in this run
+    if recorded_audio_base64 and recorded_audio_base64 != st.session_state.get('last_processed_recorded_audio', None):
+        st.info("DEBUG (Python): Détection d'un nouvel audio enregistré. Traitement en cours...")
+        st.session_state['last_processed_recorded_audio'] = recorded_audio_base64 # Store to prevent reprocessing
 
-            temp_audio_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
-            with wave.open(temp_audio_path, 'wb') as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(samplerate)
-                wf.writeframes(audio_data.tobytes())
+        try:
+            # --- DEBUGGING STEP 1: Check base64 data received in Python ---
+            st.info(f"DEBUG (Python): Base64 audio reçu. Longueur : {len(recorded_audio_base64) if recorded_audio_base64 else 0}")
+            
+            audio_bytes = base64.b64decode(recorded_audio_base64)
+            audio_to_display = recorded_audio_base64 # Store for display
 
-            return temp_audio_path
+            # --- DEBUGGING STEP 2: Check decoded audio bytes ---
+            st.info(f"DEBUG (Python): Audio décodé en octets. Longueur : {len(audio_bytes)}")
 
-    processed_message = ""
+            if not audio_bytes:
+                st.error("Erreur Enregistrement: L'audio enregistré est vide après décodage Base64.")
+                # Clear component value to allow new recording
+                if component_name in st.session_state:
+                    del st.session_state[component_name]
+                st.rerun() # Rerun to update UI with error
+                
+            # Use a more robust temp file creation
+            # Ensure the suffix matches the expected audio format (webm as per JS)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio_file:
+                temp_audio_file.write(audio_bytes)
+            temp_audio_path = temp_audio_file.name
 
-    if speak_button:
-        audio_path = record_audio()
-        if audio_path:
-            with open(audio_path, "rb") as file:
+            # --- DEBUGGING STEP 3: Check if temp file was created ---
+            st.info(f"DEBUG (Python): Fichier temporaire créé à : {temp_audio_path}")
+            if not os.path.exists(temp_audio_path) or os.path.getsize(temp_audio_path) == 0:
+                st.error(f"Erreur Enregistrement: Le fichier audio temporaire est vide ou n'a pas été créé correctement à {temp_audio_path}.")
+                if os.path.exists(temp_audio_path): # Clean up if it exists
+                    os.remove(temp_audio_path)
+                if component_name in st.session_state:
+                    del st.session_state[component_name]
+                st.rerun()
+
+            with open(temp_audio_path, "rb") as file:
                 with st.spinner("Transcription audio en cours..."):
-                    transcription = client.audio.transcriptions.create(
-                        file=("audio.wav", file.read()),
-                        model="whisper-large-v3",
-                        response_format="json",
-                        language="fr",
-                        temperature=0.0
+                    try: # Added specific try-except for Groq API call
+                        transcription = client.audio.transcriptions.create(
+                            file=("recorded_audio.webm", file.read()), # Filename in tuple must match the format
+                            model="whisper-large-v3",
+                            response_format="json",
+                            language="fr",
+                            temperature=0.0
+                        )
+                        processed_message_content = transcription.text
+                        st.info(f"DEBUG (Python): Transcription réussie: '{processed_message_content}'")
+                    except Exception as groq_transcription_error:
+                        st.error(f"Erreur Transcription (Groq API) : {groq_transcription_error}")
+                        processed_message_content = "" # Clear message if transcription fails
+
+            if os.path.exists(temp_audio_path): # Ensure file exists before trying to remove
+                os.remove(temp_audio_path) # Clean up temp file
+
+            # Trigger chatbot processing ONLY if transcription was successful
+            if processed_message_content:
+                st.session_state.messages.append({"role": "user", "content": processed_message_content, "audio_data": audio_to_display})
+                with st.spinner("Le chatbot réfléchit..."):
+                    try:
+                        chat_completion = client.chat.completions.create(
+                            messages=[{"role": "user", "content": processed_message_content}],
+                            model="llama-3.3-70b-versatile",
+                        )
+                        response_text = chat_completion.choices[0].message.content
+                        st.session_state.messages.append({"role": "bot", "content": response_text})
+                        st.info(f"DEBUG (Python): Réponse du chatbot obtenue.")
+                    except Exception as e:
+                        st.error(f"Erreur Chatbot (API): Impossible d'obtenir une réponse du chatbot Groq. Erreur: {e}")
+                        st.session_state.messages.append({"role": "bot", "content": "Désolé, je n'ai pas pu traiter votre demande. Une erreur est survenue lors de la communication avec le service de chatbot."})
+            else:
+                st.warning("Aucune transcription obtenue, le chatbot ne sera pas interrogé.")
+
+            # Clear component value for next recording and force rerun
+            if component_name in st.session_state:
+                del st.session_state[component_name]
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"Erreur Générale (Audio Enregistré): Une erreur inattendue est survenue lors du traitement de l'audio enregistré. Erreur: {e}")
+            # Ensure proper cleanup/reset
+            if component_name in st.session_state:
+                del st.session_state[component_name]
+            if 'last_processed_recorded_audio' in st.session_state:
+                del st.session_state['last_processed_recorded_audio']
+            st.rerun() # Rerun to update UI with error
+
+    # This block runs if the form is submitted by clicking 'Envoyer Message'
+    elif send_button:
+        if audio_file_uploader:
+            st.info("Traitement du fichier audio téléversé...")
+            try:
+                # Use a robust temp file creation with original extension
+                filename = tempfile.NamedTemporaryFile(delete=False, suffix=f".{audio_file_uploader.name.split('.')[-1]}").name
+                with open(filename, "wb") as f:
+                    f.write(audio_file_uploader.getvalue())
+
+                with open(filename, "rb") as file:
+                    with st.spinner("Transcription audio en cours..."):
+                        transcription = client.audio.transcriptions.create(
+                            file=(audio_file_uploader.name, file.read()),
+                            model="whisper-large-v3",
+                            response_format="json",
+                            language="fr",
+                            temperature=0.0
+                        )
+                processed_message_content = transcription.text
+                st.session_state.messages.append({"role": "user", "content": processed_message_content})
+                os.remove(filename) # Clean up temp file
+            except Exception as e:
+                st.error(f"Erreur Transcription (Fichier Téléversé): Impossible de transcrire le fichier audio. Vérifiez le format et votre clé API Groq. Erreur: {e}")
+                processed_message_content = "" # Clear message if error
+        elif message_input:
+            processed_message_content = message_input
+            st.session_state.messages.append({"role": "user", "content": processed_message_content})
+
+        # If a message was successfully processed by form submission (uploaded audio or text)
+        if processed_message_content:
+            st.info("...")
+            with st.spinner("Le chatbot réfléchit..."):
+                try:
+                    chat_completion = client.chat.completions.create(
+                        messages=[{"role": "user", "content": processed_message_content}],
+                        model="llama-3.3-70b-versatile",
                     )
-            processed_message = transcription.text
-            st.write(f"**📝 Texte détecté :** {processed_message}")
-            os.remove(audio_path)
+                    response_text = chat_completion.choices[0].message.content
+                    st.session_state.messages.append({"role": "bot", "content": response_text})
 
-    elif audio_file_uploader:
-        with st.spinner("🎙 Transcription en cours..."):
-            filename = tempfile.NamedTemporaryFile(delete=False, suffix=f".{audio_file_uploader.name.split('.')[-1]}").name
-            with open(filename, "wb") as f:
-                f.write(audio_file_uploader.getvalue())
+                except Exception as e:
+                    st.error(f"Erreur Chatbot (API): Impossible d'obtenir une réponse du chatbot Groq. Erreur: {e}")
+                    st.session_state.messages.append({"role": "bot", "content": "Désolé, je n'ai pas pu traiter votre demande. Une erreur est survenue lors de la communication avec le service de chatbot."})
+        
+        # Reset the last_processed_recorded_audio flag for the next interaction cycle if it was set
+        if 'last_processed_recorded_audio' in st.session_state:
+            del st.session_state['last_processed_recorded_audio']
+        
+        st.rerun() # Force rerun to update chat history and show response
 
-            with open(filename, "rb") as file:
-                transcription = client.audio.transcriptions.create(
-                    file=(audio_file_uploader.name, file.read()),
-                    model="whisper-large-v3",
-                    response_format="json",
-                    language="fr",
-                    temperature=0.0
-                )
-            processed_message = transcription.text
-            st.write(f"**📝 Texte détecté :** {processed_message}")
-            os.remove(filename)
-
-    elif send_button and message_input:
-        processed_message = message_input
-
-    if processed_message:
-        st.session_state.messages.append({"role": "user", "content": processed_message})
-        with st.spinner("Le chatbot réfléchit..."):
-            chat_completion = client.chat.completions.create(
-                messages=[{"role": "user", "content": processed_message}],
-                model="llama-3.3-70b-versatile",
-            )
-            response_text = chat_completion.choices[0].message.content
-
-            st.session_state.messages.append({"role": "bot", "content": response_text})
-
-        st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True) # Close content-card for chatbot
 
 # --- Global Footer ---
 st.markdown("---")
