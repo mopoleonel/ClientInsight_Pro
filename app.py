@@ -1,553 +1,355 @@
 import streamlit as st
-import pandas as pd
-import pickle
-import time
+from PIL import Image
 import os
-from streamlit_option_menu import option_menu
+import folium
+from streamlit_folium import st_folium
+from huggingface_hub import hf_hub_download
+
+# Suppression des imports Groq et dotenv
+# from groq import Groq
+# from dotenv import load_dotenv
+
 import base64
 import tempfile
-import json
 
-# --- New Chatbot Imports ---
-from groq import Groq
-# load_dotenv() # Retiré car nous utilisons st.secrets pour la clé GROQ
-import pyttsx3 # For text-to-speech, keep this if you want it
-# --- End New Chatbot Imports ---
+import tensorflow as tf
+import numpy as np
 
-# --- Custom Streamlit Component for Audio Recording ---
-def audio_recorder_component():
-    """
-    Streamlit component to record audio in the browser and return it as base64.
-    """
-    # Define the component name used in JavaScript's postMessage
-    component_name = "audio_recorder_custom_component"
-
-    st.components.v1.html(
-        f"""
-        <style>
-        .audio-recorder-container {{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 10px;
-            border-radius: 8px;
-            background-color: #262730;
-            margin-top: 10px;
-        }}
-        .audio-recorder-button {{
-            background-color: #FF4B4B;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 45px;
-            height: 45px;
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.1s ease;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        }}
-        .audio-recorder-button:hover {{
-            background-color: #E63B3B;
-            transform: scale(1.05);
-        }}
-        .audio-recorder-button:active {{
-            transform: scale(0.95);
-        }}
-        .audio-recorder-button.recording {{
-            background-color: #28a745;
-            animation: pulse 1.5s infinite;
-        }}
-        .audio-recorder-status {{
-            margin-top: 8px;
-            font-size: 0.8em;
-            color: #ccc;
-        }}
-        @keyframes pulse {{
-            0% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }}
-            70% {{ box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }}
-            100% {{ box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }}
-        }}
-        </style>
-        <div class="audio-recorder-container">
-            <button id="recordButton" class="audio-recorder-button">🎤</button>
-            <div id="status" class="audio-recorder-status">Appuyez pour enregistrer</div>
-        </div>
-
-        <script>
-            const recordButton = document.getElementById('recordButton');
-            const statusDiv = document.getElementById('status');
-            let mediaRecorder;
-            let audioChunks = [];
-            let isRecording = false;
-
-            function sendAudioToStreamlit(data) {{ // Doubled {{
-                if (window.parent.streamlitReportReady) {{ // Doubled {{
-                    window.parent.streamlitReportReady();
-                }} // Doubled }}
-                console.log("Sending data to Streamlit. Data length:", data ? data.length : 0); // DEBUG JS
-                window.parent.postMessage({{ // Doubled {{
-                    type: 'streamlit:setComponentValue',
-                    componentName: '{component_name}',
-                    value: data,
-                }}, '*'); // Doubled }}
-            }} // Doubled }}
-
-            recordButton.onclick = async () => {{ // Doubled {{
-                if (!isRecording) {{ // Doubled {{
-                    isRecording = true;
-                    recordButton.classList.add('recording');
-                    recordButton.innerHTML = '🛑';
-                    statusDiv.innerText = 'Enregistrement... Appuyez pour arrêter.';
-                    audioChunks = [];
-
-                    try {{ // Doubled {{
-                        const stream = await navigator.mediaDevices.getUserMedia({{ audio: true }}); // Doubled {{
-                        // Ensure audio/webm is supported, fallback if needed
-                        const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' :
-                                       MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' :
-                                       'audio/ogg'; // Fallback to a common type
-                        
-                        console.log("Using MIME type for recording:", mimeType); // DEBUG JS
-                        mediaRecorder = new MediaRecorder(stream, {{ mimeType: mimeType }}); // Doubled {{
-
-                        mediaRecorder.ondataavailable = event => {{ // Doubled {{
-                            audioChunks.push(event.data);
-                        }}; // Doubled }}
-
-                        mediaRecorder.onstop = async () => {{ // Doubled {{
-                            const audioBlob = new Blob(audioChunks, {{ type: mimeType }}); // Doubled {{
-                            const reader = new FileReader();
-                            reader.readAsDataURL(audioBlob);
-                            reader.onloadend = () => {{ // Doubled {{
-                                const base64data = reader.result.split(',')[1];
-                                console.log("Audio recorded. Base64 length:", base64data ? base64data.length : 0); // DEBUG JS
-                                sendAudioToStreamlit(base64data);
-                            }}; // Doubled }}
-                            stream.getTracks().forEach(track => track.stop());
-                        }}; // Doubled }}
-
-                        mediaRecorder.start();
-                    }} catch (err) {{ // Doubled {{
-                        console.error('Error accessing microphone or media recording:', err); // DEBUG JS
-                        statusDiv.innerText = 'Erreur: Accès micro refusé ou impossible. Vérifiez les permissions de votre navigateur.';
-                        isRecording = false;
-                        recordButton.classList.remove('recording');
-                        recordButton.innerHTML = '🎤';
-                    }} // Doubled }}
-
-                }} else {{ // Doubled {{
-                    isRecording = false;
-                    recordButton.classList.remove('recording');
-                    recordButton.innerHTML = '🎤';
-                    statusDiv.innerText = 'Appuyez pour enregistrer';
-                    if (mediaRecorder && mediaRecorder.state === 'recording') {{ // Doubled {{
-                        mediaRecorder.stop();
-                    }} // Doubled }}
-                }} // Doubled }}
-            }}; // Doubled }}
-        </script>
-        """,
-        height=100,
-        scrolling=False
-    )
-    # Return the value from session_state using the defined component_name
-    return st.session_state.get(component_name, None)
-
-# --- End Custom Streamlit Component ---
-
-# --- Function to Inject Custom CSS ---
-def inject_css(file_path):
-    try:
-        with open(file_path) as f:
-            st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-    except FileNotFoundError:
-        st.error(f"Erreur CSS: Le fichier '{file_path}' est introuvable. Assurez-vous qu'il est dans le même répertoire.")
-        st.stop()
-    except Exception as e:
-        st.error(f"Erreur CSS: Impossible d'injecter le CSS depuis '{file_path}'. Erreur: {e}")
-        st.stop()
-
-# --- Streamlit Page Configuration ---
+# --- Configuration de la page Streamlit ---
 st.set_page_config(
-    page_title="ClientInsight Pro - DashSphere",
-    page_icon="🌌",
+    page_title="GreenField Pro - Dashboard",
+    page_icon=":seedling:",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
-inject_css('style.css')
-
-# --- Load Machine Learning Model (Cached for Performance) ---
-@st.cache_resource
-def load_model():
-    try:
-        with open('model.pkl', 'rb') as file:
-            model = pickle.load(file)
-        return model
-    except FileNotFoundError:
-        st.error("Erreur Modèle: Le fichier 'model.pkl' est introuvable. Assurez-vous qu'il est dans le même répertoire que 'app.py'.")
-        st.stop()
-    except Exception as e:
-        st.error(f"Erreur Modèle: Impossible de charger le modèle. Vérifiez que 'model.pkl' est un fichier pickle valide. Erreur: {e}")
-        st.stop()
-
-model = load_model()
-
-# --- Preprocessing Function for Model Input ---
-def preprocess_input(credit_score, geography_display, gender_display, age, tenure, balance,
-                     num_products, has_cr_card, is_active_member, estimated_salary):
-    try:
-        gender_encoded = 0 if gender_display == 'Homme' else 1
-        if geography_display == 'France':
-            geography_encoded = 0.5014
-        elif geography_display == 'Allemagne':
-            geography_encoded = 0.2509
-        else: # 'Espagne'
-            geography_encoded = 0.2477
-
-        has_cr_card_encoded = 1 if has_cr_card == 'Oui' else 0
-        is_active_member_encoded = 1 if is_active_member == 'Oui' else 0
-
-        input_data = pd.DataFrame([[
-            credit_score, geography_encoded, gender_encoded, age, tenure, balance,
-            num_products, has_cr_card_encoded, is_active_member_encoded, estimated_salary
-        ]], columns=['CreditScore', 'Geography', 'Gender', 'Age', 'Tenure', 'Balance',
-                     'NumOfProducts', 'HasCrCard', 'IsActiveMember', 'EstimatedSalary'])
-        return input_data
-    except Exception as e:
-        st.error(f"Erreur Prétraitement: Impossible de prétraiter les données d'entrée. Erreur: {e}")
+# --- CUSTOM AUDIO RECORDER COMPONENT PLACEHOLDER ---
+try:
+    import streamlit.components.v1 as components
+    _audio_recorder_component = components.declare_component(
+        "audio_recorder_component",
+        path="./audio_recorder_component/frontend/build"
+    )
+    def audio_recorder_component():
+        return _audio_recorder_component(key="audio_recorder_widget")
+except Exception as e:
+    st.warning(f"Could not load custom audio recorder component. Audio recording functionality might be limited: {e}")
+    def audio_recorder_component():
+        st.info("Audio recording component not loaded. Please ensure it's installed correctly and ffmpeg/ffprobe are available.")
         return None
 
-# --- Main Application Header ---
-st.markdown("<h1>Client<span style='color: var(--primary-color);'>Insight Pro</span></h1>", unsafe_allow_html=True)
-st.markdown("""
-    <p style='text-align: center; font-size: 1.2rem; color: var(--secondary-color); margin-bottom: 2.5rem;'>
-    Votre portail intelligent pour l'analyse prédictive et l'assistance client.
-    </p>
+# --- Chemins des ressources statiques et du modèle ---
+LOGO_PATH = os.path.join("static", "images", "Green Plant and Agriculture Logo (2).png")
+CSS_PATH = "style.css"
+
+HF_REPO_ID = "mopaoleonel/plante_tedection"
+HF_MODEL_FILENAME = "mon_modele.keras"
+
+# --- Dictionnaire des classes de maladies ---
+CLASS_NAMES = {
+    'Apple___Apple_scab': 0, 'Apple___Black_rot': 1, 'Apple___Cedar_apple_rust': 2, 'Apple___healthy': 3,
+    'Blueberry___healthy': 4, 'Cherry_(including_sour)___Powdery_mildew': 5, 'Cherry_(including_sour)___healthy': 6,
+    'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot': 7, 'Corn_(maize)___Common_rust_': 8, 'Corn_(maize)___Northern_Leaf_Blight': 9,
+    'Corn_(maize)___healthy': 10, 'Grape___Black_rot': 11, 'Grape___Esca_(Black_Measles)': 12, 'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)': 13,
+    'Grape___healthy': 14, 'Orange___Haunglongbing_(Citrus_greening)': 15, 'Peach___Bacterial_spot': 16, 'Peach___healthy': 17,
+    'Pepper,_bell___Bacterial_spot': 18, 'Pepper,_bell___healthy': 19, 'Potato___Early_blight': 20, 'Potato___Late_blight': 21,
+    'Potato___healthy': 22, 'Raspberry___healthy': 23, 'Soybean___healthy': 24, 'Squash___Powdery_mildew': 25,
+    'Strawberry___Leaf_scorch': 26, 'Strawberry___healthy': 27, 'Tomato___Bacterial_spot': 28, 'Tomato___Early_blight': 29,
+    'Tomato___Late_blight': 30, 'Tomato___Leaf_Mold': 31, 'Tomato___Septoria_leaf_spot': 32, 'Tomato___Spider_mites Two-spotted_spider_mite': 33,
+    'Tomato___Target_Spot': 34, 'Tomato___Tomato_Yellow_Leaf_Curl_Virus': 35, 'Tomato___Tomato_mosaic_virus': 36, 'Tomato___healthy': 37
+}
+CLASS_NAMES_INV = {v: k for k, v in CLASS_NAMES.items()}
+
+IMG_HEIGHT = 64
+IMG_WIDTH = 64
+IMG_CHANNELS = 3
+
+# --- Fonctions utilitaires et de chargement ---
+
+def load_css(css_file):
+    try:
+        with open(css_file) as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        st.warning(f"Fichier CSS non trouvé à : {css_file}. L'interface utilisera les styles par défaut.")
+    except Exception as e:
+        st.error(f"Erreur lors du chargement du CSS : {e}")
+
+@st.cache_resource
+def load_keras_model_from_hub(repo_id, filename):
+    try:
+        model_path = hf_hub_download(repo_id=repo_id, filename=filename)
+        st.info(f"Modèle téléchargé depuis Hugging Face: {model_path}")
+        model = tf.keras.models.load_model(model_path)
+        st.success("Modèle Keras chargé avec succès !")
+        return model
+    except Exception as e:
+        st.error(f"Erreur Critique : Impossible de télécharger ou charger le modèle depuis Hugging Face Hub: {e}")
+        st.info(f"Assurez-vous que le dépôt '{repo_id}' et le fichier '{filename}' existent et sont accessibles. Vérifiez également que votre modèle a été sauvegardé avec TensorFlow {tf.__version__}.")
+        return None
+
+def show_dashboard_view():
+    st.markdown("<h1>Tableau de Bord</h1>", unsafe_allow_html=True)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.markdown("""
+            <a href="#" class="info-card">
+                <div>
+                    <div class="value">24°C</div>
+                    <div class="label">Température</div>
+                </div>
+                <div class="icon-container"><i class="fas fa-thermometer-three-quarters"></i></div>
+            </a>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+            <a href="#" class="info-card">
+                <div>
+                    <div class="value">42.5%</div>
+                    <div class="label">Humidité</div>
+                </div>
+                <div class="icon-container"><i class="fas fa-tint"></i></div>
+            </a>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+            <a href="#" class="info-card">
+                <div>
+                    <div class="value">3.0mm</div>
+                    <div class="label">Précipitation</div>
+                </div>
+                <div class="icon-container"><i class="fas fa-cloud-rain"></i></div>
+            </a>
+        """, unsafe_allow_html=True)
+
+    with col4:
+        st.markdown("""
+            <a href="#" class="info-card">
+                <div>
+                    <div class="value">3.5m/s</div>
+                    <div class="label">Vent</div>
+                </div>
+                <div class="icon-container"><i class="fas fa-wind"></i></div>
+            </a>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    st.markdown("<h2 id='map-plantation'><i class='fa-solid fa-map-location-dot'></i> Carte des Plantations</h2>", unsafe_allow_html=True)
+
+    center_lat = 5.4746
+    center_lon = 10.4243
+
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=10, control_scale=True)
+
+    folium.Marker(
+        location=[center_lat, center_lon],
+        popup="<b>Bafoussam</b><br>Zone de Plantation Principale",
+        tooltip="Bafoussam"
+    ).add_to(m)
+
+    folium.Marker(
+        location=[5.62, 10.05],
+        popup="<b>Zone Ouest</b><br>Quelques fermes ici.",
+        icon=folium.Icon(color="green", icon="leaf")
+    ).add_to(m)
+
+    st_folium(m, width='100%', height=500)
+
+    st.markdown("""
+        <p style='color: var(--text-color); margin-top: 1rem;'>
+            Visualisation des emplacements de vos plantations et des points d'intérêt.
+        </p>
     """, unsafe_allow_html=True)
 
-# --- Horizontal Navigation with streamlit_option_menu ---
-selected = option_menu(
-    menu_title=None,
-    options=["Prédiction de Désabonnement", "Chatbot d'Assistance"],
-    icons=["graph-up", "chat-text"],
-    default_index=0,
-    orientation="horizontal",
-    styles={
-        "container": {"padding": "0!important", "background-color": "var(--background-dark)", "margin-bottom": "2rem"},
-        "icon": {"color": "var(--text-light)", "font-size": "18px"},
-        "nav-link": {
-            "font-size": "18px",
-            "text-align": "center",
-            "margin": "0px 0.75rem",
-            "background-color": "transparent",
-            "color": "#00bcd4",
-            "border": "2px solid #8A2BE2",
-            "border-radius": "2rem",
-            "transition": "all 0.3s ease",
-            "--hover-color": "#00bcd4"
-        },
-        "nav-link-selected": {
-            "background-color": "var(--primary-color)",
-            "color": "var(--background-dark)",
-            "border-radius": "2rem",
-            "border": "2px solid var(--primary-color)",
-            "box-shadow": "0 5px 20px rgba(0, 188, 212, 0.6)",
-            "transform": "translateY(-2px)"
-        },
-    }
-)
 
-if selected == "Prédiction de Désabonnement":
-    if "prediction_result" not in st.session_state:
-        st.session_state.prediction_result = None
-    if "prediction_message" not in st.session_state:
-        st.session_state.prediction_message = None
+def show_plant_analysis_view(model): # Suppression de groq_client du paramètre
+    """Affiche la page d'analyse de maladie des plantes."""
+    st.markdown("<h2 id='analyse-plant'><i class='fa-solid fa-microscope'></i> Analyser ma plante</h2>", unsafe_allow_html=True)
+    st.markdown("Téléchargez une image de la feuille de votre plante pour obtenir un diagnostic instantané et des recommandations.")
 
-    st.markdown("<h3><svg viewBox='0 0 24 24' width='30' height='30' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M22 12h-4l-3 9L9 3l-3 9H2'></path></svg>Outil de Prédiction Client</h3>", unsafe_allow_html=True)
-    st.markdown("<p style='color: var(--secondary-color); margin-bottom: 2rem; text-align: center;'>Entrez les détails du client ci-dessous pour analyser le risque de désabonnement.</p>", unsafe_allow_html=True)
+    if not model:
+        st.error("Le service d'analyse est indisponible car le modèle de prédiction n'a pas pu être chargé. Veuillez vérifier la connexion à Hugging Face et le nom du modèle.")
+        return
 
-    if st.session_state.prediction_result is not None:
-        result = st.session_state.prediction_result
-        message = st.session_state.prediction_message
+    uploaded_file = st.file_uploader("Choisissez une image...", type=["jpg", "jpeg", "png"], label_visibility="collapsed", key="plant_analysis_uploader")
 
-        st.markdown("<div class='results-display'>", unsafe_allow_html=True)
-        st.markdown("<h4>Résultat de la Prédiction</h4>", unsafe_allow_html=True)
-
-        if "error" in result and result["error"]:
-            st.error(message)
-        elif result["prediction"] == 1:
-            st.markdown(f"<p class='churn-risk'>💔 Risque ÉLEVÉ de Désabonnement !</p>", unsafe_allow_html=True)
-            st.markdown(f"<p class='probability'>Probabilité estimée : <strong>{(result['probability'] * 100):.2f}%</strong></p>", unsafe_allow_html=True)
-            st.warning(message)
-        else:
-            st.markdown(f"<p class='no-churn-risk'>✅ Faible Risque de Désabonnement</p>", unsafe_allow_html=True)
-            st.markdown(f"<p class='probability'>Probabilité estimée : <strong>{(result['probability'] * 100):.2f}%</strong></p>", unsafe_allow_html=True)
-            st.success(message)
-
-        st.markdown("<div style='text-align: center; margin-top: 1.5rem;'>", unsafe_allow_html=True)
-        if st.button("Nouvelle Prédiction", key="new_prediction_btn"):
-            st.session_state.prediction_result = None
-            st.session_state.prediction_message = None
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with st.form("prediction_form_main_content", clear_on_submit=False):
-        if st.session_state.prediction_result is not None:
-            st.markdown("<div style='margin-top: 2rem; border-top: 1px solid var(--border-dark); padding-top: 2rem;'></div>", unsafe_allow_html=True)
-
-        col1, col2 = st.columns(2)
-
+    if uploaded_file is not None:
+        col1, col2 = st.columns([0.8, 1.2])
         with col1:
-            credit_score = st.slider("Score de Crédit", 350, 850, 650, key="main_credit_score")
-            geography = st.selectbox("Géographie", ['France', 'Allemagne', 'Espagne'], key="main_geography")
-            gender = st.selectbox("Sexe", ['Homme', 'Femme'], key="main_gender")
-            age = st.number_input("Âge", min_value=18, max_value=92, value=35, key="main_age")
-            tenure = st.number_input("Ancienneté (années)", min_value=0, max_value=10, value=5, key="main_tenure")
+            st.image(uploaded_file, caption="Image téléchargée", use_container_width=True)
 
         with col2:
-            balance = st.number_input("Solde du Compte (€)", min_value=0.0, value=0.0, step=0.01, key="main_balance")
-            num_products = st.number_input("Nombre de Produits", min_value=1, max_value=4, value=1, key="main_num_products")
-            has_cr_card = st.selectbox("Possède une Carte de Crédit ?", ['Oui', 'Non'], key="main_has_cr_card")
-            is_active_member = st.selectbox("Est un Membre Actif ?", ['Oui', 'Non'], key="main_is_active_member")
-            estimated_salary = st.number_input("Salaire Estimé Annuel (€)", min_value=0.0, value=50000.0, step=0.01, key="main_estimated_salary")
+            with st.spinner("Analyse de l'image en cours..."):
+                try:
+                    image = Image.open(uploaded_file).convert('RGB')
+                    img_resized = image.resize((IMG_WIDTH, IMG_HEIGHT))
+                    img_array = tf.keras.preprocessing.image.img_to_array(img_resized)
+                    img_array = tf.expand_dims(img_array, 0)
+                    img_array = tf.cast(img_array, tf.float32) / 255.0
 
-        st.markdown("<div style='text-align: center; margin-top: 2rem;'>", unsafe_allow_html=True)
-        submitted = st.form_submit_button("Prédire le Désabonnement", type="primary")
-        st.markdown("</div>", unsafe_allow_html=True)
+                    prediction = model.predict(img_array)
+                    predicted_class_index = np.argmax(prediction)
+                    predicted_class_name = CLASS_NAMES_INV[predicted_class_index]
 
-    if submitted:
-        with st.spinner("Analyse en cours..."):
-            time.sleep(2) # Simule un délai de traitement
+                    parts = predicted_class_name.split('___')
+                    plant_name = parts[0].replace('_', ' ')
+                    disease_name = parts[1].replace('_', ' ')
 
-            input_data = preprocess_input(
-                credit_score, geography, gender, age, tenure, balance,
-                num_products, has_cr_card, is_active_member, estimated_salary
-            )
+                except Exception as e:
+                    st.error(f"Erreur lors du traitement de l'image ou de la prédiction : {e}")
+                    st.info("Assurez-vous que l'image est valide et que le modèle est compatible.")
+                    return
 
-            if input_data is not None:
-                prediction = model.predict(input_data)[0]
-                prediction_proba = model.predict_proba(input_data)[0]
+            st.subheader("Résultats de l'analyse")
+            if 'healthy' in disease_name.lower():
+                st.success(f"**Diagnostic :** La plante ({plant_name}) semble **saine**.")
+                st.balloons()
+                st.markdown("<hr>", unsafe_allow_html=True)
+                st.subheader("Conseils pour une plante saine")
+                # Réponse statique pour les plantes saines
+                st.markdown(f"""
+                    ### 🌱 Conseils pour une Plante Saine
+                    - **Arrosage Régulier :** Assurez-vous que votre plante {plant_name} reçoit la bonne quantité d'eau, ni trop, ni trop peu.
+                    - **Lumière Adéquate :** Placez-la dans un endroit où elle bénéficie d'une lumière appropriée à son espèce.
+                    - **Fertilisation :** Apportez des nutriments essentiels selon les besoins de la plante et la saison.
+                    - **Vérification Régulière :** Inspectez régulièrement les feuilles et les tiges pour détecter tout signe précoce de stress ou de parasites.
 
-                st.session_state.prediction_result = {
-                    "prediction": int(prediction),
-                    "probability": float(prediction_proba[1]) if prediction == 1 else float(prediction_proba[0])
-                }
-                if prediction == 1:
-                    st.session_state.prediction_message = "Action Requise : Ce client présente un risque significatif de désabonnement. Une intervention rapide (offre personnalisée, contact proactif) est cruciale pour la rétention."
-                else:
-                    st.session_state.prediction_message = "Bonne nouvelle : Ce client est stable. Continuez à maintenir une relation positive pour assurer sa satisfaction et sa fidélité."
+                    *Continuez sur cette lancée, votre travail acharné porte ses fruits !*
+                """)
             else:
-                st.session_state.prediction_result = {"error": True}
-                st.session_state.prediction_message = "Impossible de traiter les données. Vérifiez les entrées."
-        st.rerun()
+                st.warning(f"**Diagnostic :** {plant_name} - **{disease_name}**")
+                st.markdown("<hr>", unsafe_allow_html=True)
+                st.subheader("Recommandations")
+                # Réponse statique pour les maladies
+                st.markdown(f"""
+                    ### 🧐 Causes Principales
+                    - **Facteurs environnementaux :** Humidité excessive, manque de ventilation, températures inappropriées.
+                    - **Manque de nutriments :** Une carence peut affaiblir la plante.
+                    - **Parasites :** Certains insectes peuvent être vecteurs de maladies.
 
-    st.markdown("</div>", unsafe_allow_html=True) # Clôture hypothétique d'un div parent pour la section prédiction
+                    ### 🛡️ Solutions et Traitements
+                    **Prévention :**
+                    - **Hygiène :** Nettoyez régulièrement les outils et supprimez les débris végétaux.
+                    - **Rotation des cultures :** Évitez de planter la même espèce au même endroit chaque année.
+                    **Traitements Biologiques :**
+                    - **Utilisation de prédateurs naturels :** Introduction d'insectes bénéfiques.
+                    - **Produits à base de plantes :** Certains extraits naturels peuvent aider à combattre {disease_name}.
+                    **Traitements Chimiques :**
+                    - **Fongicides/Insecticides spécifiques :** Utilisez des produits homologués en respectant les dosages.
 
-elif selected == "Chatbot d'Assistance":
-    # load_dotenv() # Retiré
-    client = None # Initialisation
-    try:
-        # Modification pour utiliser st.secrets
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-    except KeyError: # Spécifiquement pour une clé manquante dans st.secrets
-        st.error("Erreur d'API Groq: La clé 'GROQ_API_KEY' n'est pas configurée dans les secrets de Streamlit.")
-        st.stop()
-    except Exception as e:
-        st.error(f"Erreur d'initialisation Groq: Impossible de se connecter à l'API Groq. Erreur: {e}. Vérifiez votre clé et votre connexion.")
-        st.stop()
+                    *Ne vous inquiétez pas, avec des soins appropriés, votre plante peut se rétablir. Courage !*
+                """)
 
-    # Le reste de votre code pour le Chatbot d'Assistance reste identique
-    st.markdown("<h3><svg viewBox='0 0 24 24' width='30' height='30' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15a2 2 0 0 1-2 2H7l-4 4V3a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'></path></svg>Assistant Virtuel</h3>", unsafe_allow_html=True)
 
-    st.sidebar.title("⚙️ Paramètres du Chatbot")
-    if st.sidebar.button("Effacer l'historique du Chatbot"):
-        st.session_state.messages = []
-        st.session_state.messages.append({"role": "bot", "content": "Bonjour ! Je suis votre assistant virtuel. Comment puis-je vous aider aujourd'hui ?"})
-        if 'last_processed_recorded_audio' in st.session_state: # Aussi effacer ce cache
-            del st.session_state['last_processed_recorded_audio']
-        st.rerun()
+def show_chatbot_view(): # Suppression de groq_client du paramètre
+    """Affiche la page de l'assistant virtuel (chatbot)."""
+    st.markdown("<h2><i class='fa-solid fa-comments'></i> Assistant Virtuel</h2>", unsafe_allow_html=True)
+    st.markdown("Posez-moi n'importe quelle question sur l'agriculture, vos cultures, ou les résultats de vos analyses.")
+
+    # Bouton pour effacer l'historique dans la barre latérale
+    with st.sidebar:
+        if st.button("Effacer l'historique du Chat", use_container_width=True, key="clear_chat_button"):
+            st.session_state.messages = [{"role": "bot", "content": "Bonjour ! Je suis votre assistant virtuel GreenField. Comment puis-je vous aider aujourd'hui ?"}]
+            st.rerun()
 
     if "messages" not in st.session_state:
-        st.session_state.messages = []
-        st.session_state.messages.append({"role": "bot", "content": "Bonjour ! Je suis votre assistant virtuel. Comment puis-je vous aider aujourd'hui ?"})
+        st.session_state.messages = [{"role": "bot", "content": "Bonjour ! Je suis votre assistant virtuel GreenField. Comment puis-je vous aider aujourd'hui ?"}]
 
-    # --- Display chat history with icons ---
-    for message_item in st.session_state.messages:
-        if message_item["role"] == "user":
-            st.markdown(f"""
-                <div class='message-bubble user-message'>
-                    <span class='message-icon'>👤</span> {message_item['content']}
-                </div>
-            """, unsafe_allow_html=True)
-            if 'audio_data' in message_item and message_item['audio_data']: 
-                try:
-                    st.audio(base64.b64decode(message_item['audio_data']), format='audio/webm', start_time=0)
-                except Exception as e:
-                    st.warning(f"Impossible de lire l'audio enregistré : {e}")
-        else:
-            st.markdown(f"""
-                <div class='message-bubble bot-message'>
-                    <span class='message-icon'>🤖</span> {message_item['content']}
-                </div>
-            """, unsafe_allow_html=True)
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"], avatar='🧑‍🌾' if message["role"] == 'user' else '🤖'):
+            st.markdown(message["content"])
 
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
 
-    st.markdown("<h4>Ou enregistrez votre voix :</h4>", unsafe_allow_html=True)
-    recorded_audio_base64 = audio_recorder_component()
-
     with st.form("chat_input_form", clear_on_submit=True):
-        message_input = st.text_input("💬 Entrez votre message ici :", "", key="chat_text_input")
-        audio_file_uploader = st.file_uploader("📢 Téléversez un message audio (format m4a, mp3, wav)", type=["m4a", "mp3", "wav"], key="chat_audio_uploader")
+        message_input = st.text_input("💬 Entrez votre message ici :", "", key="chat_text_input", autocomplete="off")
+        # Suppression du uploader audio car il nécessiterait Groq Whisper
+        # audio_file_uploader = st.file_uploader("📢 Téléversez un message audio (format m4a, mp3, wav)", type=["m4a", "mp3", "wav"], key="chat_audio_uploader")
         send_button = st.form_submit_button("✉️ Envoyer Message", type="primary")
 
     processed_message_content = ""
-    audio_to_display = None 
 
-    component_name = "audio_recorder_custom_component" 
+    if send_button:
+        if message_input:
+            processed_message_content = message_input
+            st.session_state.messages.append({"role": "user", "content": processed_message_content})
 
-    if recorded_audio_base64 and recorded_audio_base64 != st.session_state.get('last_processed_recorded_audio', None):
-        st.info("DEBUG (Python): Détection d'un nouvel audio enregistré. Traitement en cours...")
-        st.session_state['last_processed_recorded_audio'] = recorded_audio_base64 
+            # Simuler la réponse du chatbot
+            simulated_response = "Bonjour ! Je suis votre assistant virtuel GreenField. Je ne peux pas encore répondre à toutes les questions, mais je suis là pour vous aider avec les bases de l'agriculture. Comment puis-je vous assister ?"
+            st.session_state.messages.append({"role": "bot", "content": simulated_response})
 
-        try:
-            st.info(f"DEBUG (Python): Base64 audio reçu. Longueur : {len(recorded_audio_base64) if recorded_audio_base64 else 0}")
-            
-            audio_bytes = base64.b64decode(recorded_audio_base64)
-            audio_to_display = recorded_audio_base64 
+        st.rerun()
 
-            st.info(f"DEBUG (Python): Audio décodé en octets. Longueur : {len(audio_bytes)}")
+# --- LOGIQUE PRINCIPALE DE L'APPLICATION ---
 
-            if not audio_bytes:
-                st.error("Erreur Enregistrement: L'audio enregistré est vide après décodage Base64.")
-                if component_name in st.session_state:
-                    del st.session_state[component_name]
-                st.rerun() 
-            
-            temp_audio_path = "" # Initialisation pour éviter UnboundLocalError
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio_file:
-                temp_audio_file.write(audio_bytes)
-            temp_audio_path = temp_audio_file.name
+# Chargement du CSS et Font Awesome
+load_css(CSS_PATH)
+st.markdown("""<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">""", unsafe_allow_html=True)
 
-            st.info(f"DEBUG (Python): Fichier temporaire créé à : {temp_audio_path}")
-            if not os.path.exists(temp_audio_path) or os.path.getsize(temp_audio_path) == 0:
-                st.error(f"Erreur Enregistrement: Le fichier audio temporaire est vide ou n'a pas été créé correctement à {temp_audio_path}.")
-                if os.path.exists(temp_audio_path): 
-                    os.remove(temp_audio_path)
-                if component_name in st.session_state:
-                    del st.session_state[component_name]
-                st.rerun()
+# Initialisation du client Groq supprimée
+# groq_client = None
+# try:
+#     load_dotenv()
+#     groq_api_key = os.environ.get("GROQ_API_KEY")
+#     if groq_api_key:
+#         groq_client = Groq(api_key=groq_api_key)
+#     else:
+#         st.sidebar.warning("GROQ_API_KEY non trouvée. Le chatbot et les recommandations d'analyse ne seront pas disponibles. Veuillez l'ajouter à votre fichier `.env`.")
+# except Exception as e:
+#     st.sidebar.error(f"Erreur d'initialisation Groq : {e}. Le chatbot et les recommandations seront désactivés.")
 
-            with open(temp_audio_path, "rb") as file:
-                with st.spinner("Transcription audio en cours..."):
-                    try: 
-                        transcription = client.audio.transcriptions.create(
-                            file=("recorded_audio.webm", file.read()), 
-                            model="whisper-large-v3",
-                            response_format="json",
-                            language="fr",
-                            temperature=0.0
-                        )
-                        processed_message_content = transcription.text
-                        st.info(f"DEBUG (Python): Transcription réussie: '{processed_message_content}'")
-                    except Exception as groq_transcription_error:
-                        st.error(f"Erreur Transcription (Groq API) : {groq_transcription_error}")
-                        processed_message_content = "" 
+# Chargement du modèle Keras depuis Hugging Face (mise en cache automatique par @st.cache_resource)
+keras_model = load_keras_model_from_hub(HF_REPO_ID, HF_MODEL_FILENAME)
 
-            if os.path.exists(temp_audio_path): 
-                os.remove(temp_audio_path) 
+# Configuration de la barre latérale
+with st.sidebar:
+    try:
+        logo_image = Image.open(LOGO_PATH)
+        st.image(logo_image, use_container_width=True)
+    except FileNotFoundError:
+        st.warning(f"Logo non trouvé à {LOGO_PATH}. L'image par défaut sera utilisée.")
+    except Exception as e:
+        st.warning(f"Erreur lors du chargement du logo : {e}")
 
-            if processed_message_content:
-                st.session_state.messages.append({"role": "user", "content": processed_message_content, "audio_data": audio_to_display})
-                with st.spinner("Le chatbot réfléchit..."):
-                    try:
-                        chat_completion = client.chat.completions.create(
-                            messages=[{"role": "user", "content": processed_message_content}],
-                            model="llama3-70b-8192", # Modèle exemple, ajustez si besoin
-                        )
-                        response_text = chat_completion.choices[0].message.content
-                        st.session_state.messages.append({"role": "bot", "content": response_text})
-                        st.info(f"DEBUG (Python): Réponse du chatbot obtenue.")
-                    except Exception as e_chat: # Renommé pour éviter conflit avec e extérieur
-                        st.error(f"Erreur Chatbot (API): Impossible d'obtenir une réponse du chatbot Groq. Erreur: {e_chat}")
-                        st.session_state.messages.append({"role": "bot", "content": "Désolé, je n'ai pas pu traiter votre demande. Une erreur est survenue lors de la communication avec le service de chatbot."})
-            else:
-                st.warning("Aucune transcription obtenue, le chatbot ne sera pas interrogé.")
+    st.markdown("<h2 style='text-align: center;'>Menu Principal</h2>", unsafe_allow_html=True)
 
-            if component_name in st.session_state:
-                del st.session_state[component_name]
-            st.rerun()
+    if st.button("📊 Tableau de Bord", use_container_width=True, key="nav_dashboard"):
+        st.session_state.current_view = "dashboard"
+        st.rerun()
 
-        except Exception as e_outer: # Renommé pour éviter conflit
-            st.error(f"Erreur Générale (Audio Enregistré): Une erreur inattendue est survenue lors du traitement de l'audio enregistré. Erreur: {e_outer}")
-            if component_name in st.session_state:
-                del st.session_state[component_name]
-            if 'last_processed_recorded_audio' in st.session_state:
-                del st.session_state['last_processed_recorded_audio']
-            st.rerun() 
+    if st.button("🌱 Analyser ma plante", use_container_width=True, key="nav_analysis"):
+        st.session_state.current_view = "plant_analysis"
+        st.rerun()
 
-    elif send_button:
-        user_input_for_chatbot = "" # Pour stocker le texte à envoyer au chatbot
-        if audio_file_uploader:
-            st.info("Traitement du fichier audio téléversé...")
-            try:
-                original_filename = audio_file_uploader.name
-                temp_file_path_upload = tempfile.NamedTemporaryFile(delete=False, suffix=f".{original_filename.split('.')[-1]}").name
-                with open(temp_file_path_upload, "wb") as f:
-                    f.write(audio_file_uploader.getvalue())
+    if st.button("💬 Assistant Virtuel", use_container_width=True, key="nav_chat"):
+        st.session_state.current_view = "chat"
+        st.rerun()
 
-                with open(temp_file_path_upload, "rb") as file_to_transcribe:
-                    with st.spinner("Transcription audio (téléversé) en cours..."):
-                        transcription = client.audio.transcriptions.create(
-                            file=(original_filename, file_to_transcribe.read()),
-                            model="whisper-large-v3",
-                            response_format="json",
-                            language="fr",
-                            temperature=0.0
-                        )
-                user_input_for_chatbot = transcription.text
-                # Pas besoin d'ajouter audio_data ici car c'est un fichier uploadé, pas un enregistrement direct pour relecture simple
-                st.session_state.messages.append({"role": "user", "content": user_input_for_chatbot}) 
-                os.remove(temp_file_path_upload) 
-            except Exception as e_upload_form: # Renommé
-                st.error(f"Erreur Transcription (Fichier Téléversé): {e_upload_form}")
-                user_input_for_chatbot = ""
-        elif message_input:
-            user_input_for_chatbot = message_input
-            st.session_state.messages.append({"role": "user", "content": user_input_for_chatbot})
+    st.markdown("<hr style='margin: 1.5rem 0;'>", unsafe_allow_html=True)
 
-        if user_input_for_chatbot: # S'il y a eu du contenu (texte ou transcription d'upload)
-            st.info("DEBUG (Python): Message (formulaire) envoyé au Chatbot.") # Message de debug plus clair
-            with st.spinner("Le chatbot réfléchit..."):
-                try:
-                    chat_completion = client.chat.completions.create(
-                        messages=[{"role": "user", "content": user_input_for_chatbot}],
-                        model="llama3-70b-8192", # Modèle exemple
-                    )
-                    response_text = chat_completion.choices[0].message.content
-                    st.session_state.messages.append({"role": "bot", "content": response_text})
-                except Exception as e_chat_form: # Renommé
-                    st.error(f"Erreur Chatbot (API Formulaire): {e_chat_form}")
-                    st.session_state.messages.append({"role": "bot", "content": "Désolé, je n'ai pas pu traiter votre demande (formulaire)."})
-        
-        if 'last_processed_recorded_audio' in st.session_state:
-            del st.session_state['last_processed_recorded_audio']
-        
-        st.rerun() 
+    if st.button("🚪 Déconnexion", use_container_width=True, key="nav_logout"):
+        st.warning("Déconnexion simulée. Ajoutez votre logique de déconnexion ici.")
+        st.session_state.current_view = "dashboard"
+        st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True) # Fermeture hypothétique du div.content-card
+    st.markdown("<div style='text-align: center; font-size: 0.8rem; color: var(--text-color-light); margin-top: 2rem;'>© 2025 GreenField Pro. Tous droits réservés.</div>", unsafe_allow_html=True)
 
-# --- Global Footer ---
-st.markdown("---")
-st.markdown("""
-    <p class='app-footer'>
-        Conçu avec passion pour l'excellence de l'expérience client | © 2024 VotreEntreprise<br>
-        Optimisé pour une interaction intuitive.
-    </p>
-    """, unsafe_allow_html=True)
+
+if "current_view" not in st.session_state:
+    st.session_state.current_view = "dashboard"
+
+if st.session_state.current_view == "dashboard":
+    show_dashboard_view()
+elif st.session_state.current_view == "plant_analysis":
+    # IMPORTANT : Passer le modèle, mais plus le client Groq
+    show_plant_analysis_view(keras_model)
+elif st.session_state.current_view == "chat":
+    # IMPORTANT : Ne plus passer de client Groq
+    show_chatbot_view()
+else:
+    show_dashboard_view()
